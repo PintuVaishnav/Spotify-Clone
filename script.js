@@ -119,7 +119,7 @@ async function displayAlbums() {
 
 async function main() {
    
-    await getSongs("songs/ncs")
+    await getSongs("songs/")
     playMusic(songs[0], true)
 
     
