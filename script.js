@@ -3,6 +3,7 @@ let currentSong = new Audio();
 let songs;
 let currFolder;
 
+
 function secondsToMinutesSeconds(seconds) {
     if (isNaN(seconds) || seconds < 0) {
         return "00:00";
@@ -19,49 +20,63 @@ function secondsToMinutesSeconds(seconds) {
 
 async function getSongs(folder) {
     currFolder = folder;
-    let a = await fetch(`/${folder}/`)
-    let response = await a.text();
-    let div = document.createElement("div")
-    div.innerHTML = response;
-    let as = div.getElementsByTagName("a")
-    songs = []
-    for (let index = 0; index < as.length; index++) {
-        const element = as[index];
-        if (element.href.endsWith(".mp3")) {
-            songs.push(element.href.split(`/${folder}/`)[1])
+    try {
+        // Fetch the content of the folder
+        let response = await fetch(`/${folder}/`);
+        let text = await response.text();
+        
+        // Parse the folder content to extract song file names
+        let div = document.createElement("div");
+        div.innerHTML = text;
+        let anchors = div.getElementsByTagName("a");
+        
+        songs = [];
+        
+        for (let anchor of anchors) {
+            let href = anchor.getAttribute("href");
+            
+            // Check if the href ends with ".mp3" and add it to the songs array
+            if (href && href.endsWith(".mp3")) {
+                songs.push(href);
+            }
         }
+        
+        // Populate song list in the UI
+        let songUL = document.querySelector(".songList").getElementsByTagName("ul")[0];
+        songUL.innerHTML = "";
+        for (const song of songs) {
+            const songName = song.split('/').pop().replaceAll("%20", " ");
+            songUL.innerHTML += `
+                <li>
+                    <img class="invert" width="34" src="img/music.svg" alt="">
+                    <div class="info">
+                        <div>${songName}</div>
+                        <div>Insane</div>
+                    </div>
+                    <div class="playnow">
+                        <span>Play Now</span>
+                        <img class="invert" src="img/play.svg" alt="">
+                    </div> 
+                </li>`;
+        }
+
+        // Add event listeners to each song item for play functionality
+        Array.from(songUL.getElementsByTagName("li")).forEach(item => {
+            item.addEventListener("click", () => {
+                const songName = item.querySelector(".info").firstElementChild.innerText.trim();
+                playMusic(songName);
+            });
+        });
+
+        return songs;
+        
+    } catch (error) {
+        console.error(`Error fetching songs from folder: ${folder}`, error);
     }
-
-
-
-    
-    let songUL = document.querySelector(".songList").getElementsByTagName("ul")[0]
-    songUL.innerHTML = ""
-    for (const song of songs) {
-        songUL.innerHTML += `<li><img class="invert" width="34" src="img/music.svg" alt="">
-                            <div class="info">
-                                <div> ${song.replaceAll("%20", " ")}</div>
-                                <div>Insane</div>
-                            </div>
-                            <div class="playnow">
-                                <span>Play Now</span>
-                                <img class="invert" src="img/play.svg" alt="">
-                            </div> </li>`;
-    }
-
-
-    
-    Array.from(document.querySelector(".songList").getElementsByTagName("li")).forEach(e => {
-        e.addEventListener("click", element => {
-            playMusic(e.querySelector(".info").firstElementChild.innerHTML.trim())
-
-        })
-    })
-
-    return songs
 }
 
-const playMusic = (track, pause = false) => {
+
+const playMusics = (track, pause = false) => {
     currentSong.src = `/${currFolder}/` + track
     if (!pause) {
         currentSong.play()
@@ -91,14 +106,14 @@ async function displayAlbums() {
             let response = await a.json();
             cardContainer.innerHTML = cardContainer.innerHTML + ` <div data-folder="${folder}" class="card">
             <div class="play">
-                <svg width="35" height="30" viewBox="0 0 24 24" fill="none"
+                <svg width="35" margin-left="5px" height="30" viewBox="0 0 24 24" fill="none"
                     xmlns="http://www.w3.org/2000/svg">
                     <path d="M5 20V4L19 12L5 20Z" stroke="#141B34" fill="#000" stroke-width="1.5"
                         stroke-linejoin="round" />
                 </svg>
                 </div>
                
-            <img src="/songs/${folder}/cover.jpg" alt="">
+            <img src="/songs/${folder}/cover.jpg">
             <h2>${response.title}</h2>
             <p>${response.description}</p>
            
@@ -143,7 +158,31 @@ currentSong.addEventListener("timeupdate", () => {
     document.querySelector(".circle").style.left = (currentSong.currentTime / currentSong.duration) * 100 + "%";
 })
 
+async function playNextSong() {
+    let index = songs.indexOf(currentSong.src.split("/").slice(-1)[0]);
+    if ((index + 1) < songs.length) {
+        playMusic(songs[index + 1]);
+    } else {
+        
+        playMusic(songs[0]);
+    }
+}
 
+const playMusic = (track, pause = false) => {
+    currentSong.src = `/${currFolder}/` + track;
+    if (!pause) {
+        currentSong.play();
+        play.src = "img/pause.svg";
+    }
+    document.querySelector(".songinfo").innerHTML = decodeURI(track);
+    document.querySelector(".songtime").innerHTML = "00:00 / 00:00";
+
+    
+    currentSong.removeEventListener('ended', playNextSong);
+
+   
+    currentSong.addEventListener('ended', playNextSong);
+}
 document.querySelector(".seekbar").addEventListener("click", e => {
     let percent = (e.offsetX / e.target.getBoundingClientRect().width) * 100;
     document.querySelector(".circle").style.left = percent + "%";
